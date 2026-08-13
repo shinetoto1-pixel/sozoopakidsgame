@@ -11,10 +11,19 @@ const SEG_R = 15;
 const SEG_SPACING = 17;
 const HEAD_R = 19;
 const START_SEGMENTS = 6;
-const BASE_SPEED = 150;
 const TURN_RATE = 3.6; // rad/s
 const FOOD_R = 17;
 const FOOD_EMOJIS = ['🍎', '🍓', '🍇', '🍊', '🍒', '🍑'];
+
+// 난이도별 속도 설정 (4단계가 이전 기본값과 동일)
+const DIFFICULTY_SPEED = {
+  1: { base: 92, bonus: 22 },
+  2: { base: 112, bonus: 36 },
+  3: { base: 130, bonus: 50 },
+  4: { base: 150, bonus: 70 },
+  5: { base: 172, bonus: 88 },
+};
+const DEFAULT_DIFFICULTY = 3;
 
 class SoundFX {
   constructor() { this.ctx = null; }
@@ -69,20 +78,41 @@ class WormScene extends Phaser.Scene {
       .setOrigin(1, 0).setInteractive({ useHandCursor: true });
     this.restartBtn.on('pointerdown', (p, lx, ly, ev) => { ev.stopPropagation(); this.startGame(); });
 
+    this.difficulty = DEFAULT_DIFFICULTY;
+
     this.overlay = this.add.container(0, 0).setDepth(50).setVisible(false);
     const dim = this.add.rectangle(0, 0, GAME_W, GAME_H, 0x000000, 0.55).setOrigin(0);
-    this.overlayTitle = this.add.text(GAME_W / 2, GAME_H / 2 - 90, '꼬물꼬물 지렁이 🐛', {
-      fontFamily: 'sans-serif', fontSize: '32px', color: '#ffffff', fontStyle: 'bold',
+    this.overlayTitle = this.add.text(GAME_W / 2, GAME_H / 2 - 140, '꼬물꼬물 지렁이 🐛', {
+      fontFamily: 'sans-serif', fontSize: '30px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5).setShadow(2, 3, '#00000088', 4);
-    this.overlaySub = this.add.text(GAME_W / 2, GAME_H / 2 - 20, '화면을 누르고 있으면 그 방향으로 움직여요.\n과일을 먹고 몸을 길게 만들어보세요!\n벽이나 내 몸에 부딪히면 끝이에요.', {
-      fontFamily: 'sans-serif', fontSize: '17px', color: '#ffffffdd', align: 'center', lineSpacing: 6,
+    this.overlaySub = this.add.text(GAME_W / 2, GAME_H / 2 - 75, '화면을 누르고 있으면 그 방향으로 움직여요.\n과일을 먹고 몸을 길게 만들어보세요!\n벽이나 내 몸에 부딪히면 끝이에요.', {
+      fontFamily: 'sans-serif', fontSize: '16px', color: '#ffffffdd', align: 'center', lineSpacing: 5,
     }).setOrigin(0.5);
-    this.overlayBtn = this.add.text(GAME_W / 2, GAME_H / 2 + 70, '시작하기 ▶', {
+    this.diffLabel = this.add.text(GAME_W / 2, GAME_H / 2 + 6, '난이도 선택', {
+      fontFamily: 'sans-serif', fontSize: '16px', color: '#ffffffcc',
+    }).setOrigin(0.5);
+
+    this.diffButtons = [];
+    const diffXs = [GAME_W / 2 - 112, GAME_W / 2 - 56, GAME_W / 2, GAME_W / 2 + 56, GAME_W / 2 + 112];
+    diffXs.forEach((x, idx) => {
+      const n = idx + 1;
+      const btn = this.add.text(x, GAME_H / 2 + 44, String(n), {
+        fontFamily: 'sans-serif', fontSize: '22px', color: '#345024', fontStyle: 'bold',
+        backgroundColor: '#ffffff99', padding: { x: 14, y: 8 },
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      btn.on('pointerdown', (p, lx, ly, ev) => { ev.stopPropagation(); this.sfx.ensure(); this.selectDifficulty(n); });
+      this.diffButtons.push(btn);
+      this.overlay.add(btn);
+    });
+
+    this.overlayBtn = this.add.text(GAME_W / 2, GAME_H / 2 + 110, '시작하기 ▶', {
       fontFamily: 'sans-serif', fontSize: '26px', color: '#345024', fontStyle: 'bold', backgroundColor: '#ffd93d',
       padding: { x: 26, y: 12 },
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    this.overlay.add([dim, this.overlayTitle, this.overlaySub, this.overlayBtn]);
+    this.overlay.add([dim, this.overlayTitle, this.overlaySub, this.diffLabel, this.overlayBtn]);
+    this.overlay.sendToBack(dim);
     this.overlayBtn.on('pointerdown', () => { this.sfx.ensure(); this.startGame(); });
+    this.selectDifficulty(this.difficulty);
 
     this.input.on('pointerdown', (p) => {
       this.sfx.ensure();
@@ -177,12 +207,24 @@ class WormScene extends Phaser.Scene {
     this.textures.addCanvas(key, canvas);
   }
 
+  selectDifficulty(n) {
+    this.difficulty = n;
+    this.diffButtons.forEach((b, idx) => {
+      const selected = idx + 1 === n;
+      b.setStyle({ backgroundColor: selected ? '#ffd93d' : '#ffffff99' });
+      b.setScale(selected ? 1.15 : 1);
+    });
+  }
+
   startGame() {
     this.overlay.setVisible(false);
     this.playing = true;
     this.score = 0;
     this.updateScoreText();
     this.pointerDown = false;
+    const speedCfg = DIFFICULTY_SPEED[this.difficulty] || DIFFICULTY_SPEED[DEFAULT_DIFFICULTY];
+    this.baseSpeed = speedCfg.base;
+    this.maxSpeedBonus = speedCfg.bonus;
 
     this.bodySprites.forEach((s) => s.destroy());
     this.bodySprites = [];
@@ -237,7 +279,7 @@ class WormScene extends Phaser.Scene {
       this.heading = Phaser.Math.Angle.RotateTo(this.heading, targetAngle, TURN_RATE * dt);
     }
 
-    const speed = BASE_SPEED + Math.min(70, this.foodEaten * 3);
+    const speed = this.baseSpeed + Math.min(this.maxSpeedBonus, this.foodEaten * 3);
     this.headX += Math.cos(this.heading) * speed * dt;
     this.headY += Math.sin(this.heading) * speed * dt;
 
