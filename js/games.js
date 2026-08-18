@@ -24,4 +24,12 @@ const GAMES = [
     color: '#8bc34a',
     path: 'worm-game/index.html',
   },
+  {
+    id: 'card-match',
+    title: '짝꿍 찾기',
+    desc: '카드를 뒤집어서 같은 그림 두 장을 찾아보세요',
+    emoji: '🧩',
+    color: '#8b6fd6',
+    path: 'card-match/index.html',
+  },
 ];
