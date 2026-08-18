@@ -32,4 +32,12 @@ const GAMES = [
     color: '#8b6fd6',
     path: 'card-match/index.html',
   },
+  {
+    id: 'poop-dodge',
+    title: '똥벼락을 피해라!',
+    desc: '캐릭터를 움직여서 좋은 것들은 받고 똥은 피해보세요',
+    emoji: '💩',
+    color: '#6b4f3a',
+    path: 'poop-dodge/index.html',
+  },
 ];
